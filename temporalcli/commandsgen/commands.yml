@@ -3929,6 +3929,17 @@ commands:
         description: |
           Don't prompt to confirm.
           Only allowed when `--query` is present.
+      - name: reset-point
+        type: string
+        description: |
+          Name of a reset point marker in the workflow history.
+          The workflow will be reset to the event ID where this marker was recorded.
+          Cannot be combined with --event-id or --type.
+      - name: cascade
+        type: bool
+        description: |
+          When resetting by marker name, also reset child workflows that have the same marker.
+          Child workflows without the marker are skipped.
 
   - name: temporal workflow reset with-workflow-update-options
     summary: Update options on reset workflow

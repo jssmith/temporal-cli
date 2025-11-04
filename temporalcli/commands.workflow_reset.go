@@ -42,8 +42,19 @@ func (c *TemporalWorkflowResetCommand) getResetOperations() (validate func() err
 }
 
 func (c *TemporalWorkflowResetCommand) validateWorkflowResetArguments() error {
+	if c.ResetPoint != "" {
+		// Reset by marker
+		if c.EventId > 0 || c.Type.Value != "" {
+			return errors.New("--reset-point cannot be combined with --event-id or --type")
+		}
+		if c.WorkflowId == "" {
+			return errors.New("must specify workflow id")
+		}
+		return nil
+	}
+	
 	if c.Type.Value == "" && c.EventId <= 0 {
-		return errors.New("must specify either valid event id or reset type")
+		return errors.New("must specify either valid event id, reset type, or reset point")
 	}
 	if c.WorkflowId == "" {
 		return errors.New("must specify workflow id")
@@ -67,6 +78,14 @@ func (c *TemporalWorkflowResetCommand) validateBatchResetArguments() error {
 	return nil
 }
 func (c *TemporalWorkflowResetCommand) doWorkflowReset(cctx *CommandContext, cl client.Client) error {
+	// Handle reset by marker
+	if c.ResetPoint != "" {
+		if c.Cascade {
+			return c.doCascadingResetByMarker(cctx, cl)
+		}
+		return c.doSimpleResetByMarker(cctx, cl)
+	}
+	
 	return c.doWorkflowResetWithPostOps(cctx, cl, nil)
 }
 
@@ -109,6 +128,91 @@ func (c *TemporalWorkflowResetCommand) doWorkflowResetWithPostOps(cctx *CommandC
 			resp,
 			printer.StructuredOptions{})
 	}
+	return nil
+}
+
+func (c *TemporalWorkflowResetCommand) doSimpleResetByMarker(cctx *CommandContext, cl client.Client) error {
+	history, err := fetchAllHistory(cctx, cl, c.WorkflowId, c.RunId)
+	if err != nil {
+		return fmt.Errorf("failed to fetch workflow history: %w", err)
+	}
+
+	eventID, err := findResetPointMarker(history, c.ResetPoint)
+	if err != nil {
+		return err
+	}
+
+	cctx.Printer.Printlnf("Found reset point %q at event ID %d", c.ResetPoint, eventID)
+
+	reapplyExcludes, reapplyType, err := getResetReapplyAndExcludeTypes(c.ReapplyExclude.Values, c.ReapplyType.Value)
+	if err != nil {
+		return err
+	}
+
+	resp, err := cl.ResetWorkflowExecution(cctx, &workflowservice.ResetWorkflowExecutionRequest{
+		Namespace: c.Parent.Namespace,
+		WorkflowExecution: &common.WorkflowExecution{
+			WorkflowId: c.WorkflowId,
+			RunId:      c.RunId,
+		},
+		Reason:                    fmt.Sprintf("%s: %s", username(), c.Reason),
+		WorkflowTaskFinishEventId: eventID,
+		ResetReapplyType:          reapplyType,
+		ResetReapplyExcludeTypes:  reapplyExcludes,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to reset workflow: %w", err)
+	}
+
+	cctx.Printer.Printlnf("Reset successful. New run ID: %s", resp.RunId)
+	return nil
+}
+
+func (c *TemporalWorkflowResetCommand) doCascadingResetByMarker(cctx *CommandContext, cl client.Client) error {
+	plan, err := buildCascadingPlan(cctx, cl, c.WorkflowId, c.RunId, c.ResetPoint, 0)
+	if err != nil {
+		return fmt.Errorf("failed to build cascading plan: %w", err)
+	}
+
+	if len(plan.skipped) > 0 {
+		cctx.Printer.Printlnf("Skipping %d workflows (no reset point marker found)", len(plan.skipped))
+	}
+
+	cctx.Printer.Printlnf("Resetting %d workflows (depth-first)...", len(plan.resets))
+
+	reapplyExcludes, reapplyType, err := getResetReapplyAndExcludeTypes(c.ReapplyExclude.Values, c.ReapplyType.Value)
+	if err != nil {
+		return err
+	}
+
+	successCount := 0
+	for _, reset := range plan.resets {
+		resp, err := cl.ResetWorkflowExecution(cctx, &workflowservice.ResetWorkflowExecutionRequest{
+			Namespace: c.Parent.Namespace,
+			WorkflowExecution: &common.WorkflowExecution{
+				WorkflowId: reset.workflowID,
+				RunId:      reset.runID,
+			},
+			Reason:                    fmt.Sprintf("%s (cascade): %s", username(), c.Reason),
+			WorkflowTaskFinishEventId: reset.eventID,
+			ResetReapplyType:          reapplyType,
+			ResetReapplyExcludeTypes:  reapplyExcludes,
+		})
+
+		if err != nil {
+			cctx.Printer.Printlnf("Warning: Failed to reset %s (depth %d): %v", reset.workflowID, reset.depth, err)
+			continue
+		}
+
+		successCount++
+		if reset.depth == 0 {
+			cctx.Printer.Printlnf("Reset parent %s → run ID: %s", reset.workflowID, resp.RunId)
+		} else {
+			cctx.Printer.Printlnf("Reset child %s (depth %d) → run ID: %s", reset.workflowID, reset.depth, resp.RunId)
+		}
+	}
+
+	cctx.Printer.Printlnf("Successfully reset %d out of %d workflows", successCount, len(plan.resets))
 	return nil
 }
 
