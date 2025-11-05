@@ -1,0 +1,14 @@
+[project]
+name = "reset-child"
+version = "1.0.0"
+description = "Temporal child workflows with reset points - Financial Research example in Python"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "temporalio>=1.8.0"
+]
+
+[project.scripts]
+worker = "worker:main"
+workflow = "client:main"
+

@@ -5,7 +5,7 @@ from temporalio import workflow
 
 # Import our activities and reset point helper
 with workflow.unsafe.imports_passed_through():
-    from activities import validate_order, process_payment, ship_order
+    from activities import validate_order, process_payment, ship_order, send_notification
     from reset_point_helper import record_reset_point
 
 
@@ -51,6 +51,17 @@ class OrderWorkflow:
             start_to_close_timeout=timedelta(seconds=10),
         )
         workflow.logger.info(f"Order shipped: {shipping_result}")
+
+        # RESET POINT: Can reset to here if notification fails
+        await record_reset_point("after-shipping")
+
+        # Step 4: Send confirmation notification
+        notification_result = await workflow.execute_activity(
+            send_notification,
+            order_id,
+            start_to_close_timeout=timedelta(seconds=10),
+        )
+        workflow.logger.info(f"Notification sent: {notification_result}")
 
         return f"Order completed: {order_id}"
 

@@ -29,3 +29,12 @@ async def ship_order(order_id: str) -> str:
     await asyncio.sleep(0.1)
     return f"Shipped-{order_id}"
 
+
+@activity.defn
+async def send_notification(order_id: str) -> str:
+    """Send order confirmation notification."""
+    activity.logger.info(f"Sending notification for order {order_id}")
+    # Simulate notification
+    await asyncio.sleep(0.1)
+    return f"Notified-{order_id}"
+
