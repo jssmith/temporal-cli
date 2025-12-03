@@ -3661,6 +3661,8 @@ type TemporalWorkflowResetCommand struct {
 	BuildId        string
 	Query          string
 	Yes            bool
+	ResetPoint     string
+	Cascade        bool
 }
 
 func NewTemporalWorkflowResetCommand(cctx *CommandContext, parent *TemporalWorkflowCommand) *TemporalWorkflowResetCommand {
@@ -3690,6 +3692,8 @@ func NewTemporalWorkflowResetCommand(cctx *CommandContext, parent *TemporalWorkf
 	s.Command.PersistentFlags().StringVar(&s.BuildId, "build-id", "", "A Build ID. Use only with the BuildId `--type`. Resets the first Workflow task processed by this ID. By default, this reset may be in a prior run, earlier than a Continue as New point.")
 	s.Command.PersistentFlags().StringVarP(&s.Query, "query", "q", "", "Content for an SQL-like `QUERY` List Filter.")
 	s.Command.PersistentFlags().BoolVarP(&s.Yes, "yes", "y", false, "Don't prompt to confirm. Only allowed when `--query` is present.")
+	s.Command.PersistentFlags().StringVar(&s.ResetPoint, "reset-point", "", "Name of a reset point marker in the workflow history. The workflow will be reset to the event ID where this marker was recorded. Cannot be combined with --event-id or --type.")
+	s.Command.PersistentFlags().BoolVar(&s.Cascade, "cascade", false, "When resetting by marker name, also reset child workflows that have the same marker. Child workflows without the marker are skipped.")
 	s.Command.Run = func(c *cobra.Command, args []string) {
 		if err := s.run(cctx, args); err != nil {
 			cctx.Options.Fail(err)
