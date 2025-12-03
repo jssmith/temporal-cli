@@ -314,3 +314,6 @@ function calculateRegulatoryRisk(symbol: string, sectorRisk: 'low' | 'medium' | 
   return Math.max(0, Math.min(100, baseRisk + variation));
 }
 
+
+
+

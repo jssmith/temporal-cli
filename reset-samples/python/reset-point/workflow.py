@@ -30,7 +30,7 @@ class OrderWorkflow:
         )
         workflow.logger.info(f"Order validated: {validation_result}")
 
-        # RESET POINT: Can reset to here if payment fails
+        # RESET POINT
         await record_reset_point("after-validation")
 
         # Step 2: Process payment
@@ -41,7 +41,7 @@ class OrderWorkflow:
         )
         workflow.logger.info(f"Payment processed: {payment_result}")
 
-        # RESET POINT: Can reset to here if shipping fails
+        # RESET POINT
         await record_reset_point("after-payment")
 
         # Step 3: Ship order

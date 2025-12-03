@@ -5,7 +5,9 @@ This worker handles:
 - Parent workflow: FinancialResearchWorkflow
 - Child workflows: MarketAnalysisChildWorkflow, FinancialMetricsChildWorkflow,
                    SentimentAnalysisChildWorkflow, RiskAssessmentChildWorkflow
-- Activities: fetch_historical_data, fetch_news_data
+- Data fetch activities: fetch_historical_data, fetch_news_data, validate_company_symbol
+- Computational activities: analyze_market_metrics, calculate_financial_ratios,
+                           analyze_sentiment, assess_risk
 - Reset point marker activity
 """
 
@@ -45,6 +47,10 @@ async def main():
             activities.fetch_historical_data,
             activities.fetch_news_data,
             activities.validate_company_symbol,
+            activities.analyze_market_metrics,
+            activities.calculate_financial_ratios,
+            activities.analyze_sentiment,
+            activities.assess_risk,
             _reset_point_marker_activity,
         ],
     )
@@ -69,4 +75,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+
+
 

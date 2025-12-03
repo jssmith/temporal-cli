@@ -19,11 +19,23 @@ const localActivityMarkerName = "core_local_activity"
 const localActivityResultKey = "result"
 const localActivityDataKey = "data"
 
+// getWorkflowTaskStartedEventId finds the WorkflowTaskStarted event ID for a given WorkflowTaskCompleted event ID
+func getWorkflowTaskStartedEventId(history []*history.HistoryEvent, completedEventId int64) (int64, error) {
+	for _, event := range history {
+		if event.GetEventId() == completedEventId && event.GetEventType() == enums.EVENT_TYPE_WORKFLOW_TASK_COMPLETED {
+			attr := event.GetWorkflowTaskCompletedEventAttributes()
+			return attr.GetStartedEventId(), nil
+		}
+	}
+	return 0, fmt.Errorf("workflow task completed event %d not found in history", completedEventId)
+}
+
 // findResetPointMarker finds a reset point marker in history and returns the event ID to reset to.
 // It looks for either:
 // 1. Native reset point markers (marker name: "temporal-reset-point")
 // 2. SideEffect markers containing reset point data (marker name: "SideEffect" with Type: "temporal-reset-point")
 // 3. Local activity markers (marker name: "LocalActivity" for activity "temporal-reset-point")
+// Returns the WorkflowTaskStarted event ID (not WorkflowTaskCompleted) for proper replay behavior.
 func findResetPointMarker(history []*history.HistoryEvent, resetPointName string) (int64, error) {
 	dc := converter.GetDefaultDataConverter()
 
@@ -39,7 +51,8 @@ func findResetPointMarker(history []*history.HistoryEvent, resetPointName string
 					dc.FromPayloads(namePayload, &name)
 
 					if name == resetPointName {
-						return attr.GetWorkflowTaskCompletedEventId(), nil
+						completedEventId := attr.GetWorkflowTaskCompletedEventId()
+						return getWorkflowTaskStartedEventId(history, completedEventId)
 					}
 				}
 			}
@@ -53,7 +66,8 @@ func findResetPointMarker(history []*history.HistoryEvent, resetPointName string
 					}
 					err := dc.FromPayloads(dataPayload, &data)
 					if err == nil && data.Type == resetPointMarkerName && data.Name == resetPointName {
-						return attr.GetWorkflowTaskCompletedEventId(), nil
+						completedEventId := attr.GetWorkflowTaskCompletedEventId()
+						return getWorkflowTaskStartedEventId(history, completedEventId)
 					}
 				}
 			}
@@ -69,7 +83,8 @@ func findResetPointMarker(history []*history.HistoryEvent, resetPointName string
 					}
 					err := dc.FromPayloads(resultPayload, &result)
 					if err == nil && result.MarkerType == resetPointMarkerName && result.Name == resetPointName {
-						return attr.GetWorkflowTaskCompletedEventId(), nil
+						completedEventId := attr.GetWorkflowTaskCompletedEventId()
+						return getWorkflowTaskStartedEventId(history, completedEventId)
 					}
 				}
 			}

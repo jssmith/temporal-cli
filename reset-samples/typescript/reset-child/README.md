@@ -559,3 +559,6 @@ All use the same concepts:
 - Reset points for cost optimization
 - Real computations for demonstrating value
 
+
+
+

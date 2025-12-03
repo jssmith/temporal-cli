@@ -150,3 +150,6 @@ function getBasePriceForSymbol(symbol: string): number {
   return 50 + (hash % 450);
 }
 
+
+
+
